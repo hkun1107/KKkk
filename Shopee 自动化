@@ -17,7 +17,6 @@
 *   **消息触达端：飞书 Open API (Custom Bot)** - 通过 Webhook 接收 JSON 负载，实现移动端无感报警。
 *   **反爬突破点：CDP (Chrome DevTools Protocol)** - 通过开启 Edge 浏览器的 `9222` 调试端口实现“幽灵接管”，**完美规避全新启动浏览器时的强登录校验和反爬拦截**。
 
----
 
 ## ⚙️ 核心工作流 (Workflow)
 
@@ -49,3 +48,71 @@
 ```bash
 # 找到 Edge 安装路径，执行以下命令开启 9222 端口
 msedge.exe --remote-debugging-port=9222 --user-data-dir="C:\EdgeDebug"
+
+
+## 💻 核心代码实现
+import re# 导入正则表达式模块，用于提取特定格式的文本（如带有货币符号的价格）
+import time
+from selenium import webdriver# 导入 Selenium 核心控制模块，用于操作浏览器
+from selenium.webdriver.edge.options import Options# 导入 Edge 浏览器的专属配置模块
+from selenium.webdriver.edge.service import Service
+
+def get_shopee_data():
+    """
+    供影刀调用的主函数：无痕接管 Edge 并返回 Shopee 商品数据
+    """
+    # 1. 准备接管
+    edge_options = Options()
+    edge_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")# 核心：设置连接本地已经开启了 9222 调试端口的 Edge 浏览器
+
+
+    # 明确告诉影刀你的驱动放在了哪里！
+    # 请把下面这个路径换成你刚才存放 msedgedriver.exe 的真实路径
+    driver_path = r"D:\浏览器下载\edgedriver_win64\msedgedriver.exe" 
+    service = Service(executable_path=driver_path)
+
+    try:
+        driver = webdriver.Edge(options=edge_options,service=service)
+    except Exception as e:
+        return {"status": "error", "msg": f"浏览器接管失败，请确认 9222 端口已开: {e}"}
+
+    # 2. 寻找 Shopee 标签页
+    found_shopee = False
+    for handle in driver.window_handles:
+        driver.switch_to.window(handle)
+        if "shopee" in driver.current_url.lower():
+            found_shopee = True
+            break
+
+    if not found_shopee:
+        return {"status": "error", "msg": "未找到 Shopee 标签页，请先打开商品页面。"}
+
+    # 3. 提取数据
+    try:
+        time.sleep(1) # 缓冲
+        page_text = driver.execute_script("return document.body.innerText;")
+        
+        # 提取商品标题 (直接用 title)
+        page_title = driver.title.split('|')[0].strip() 
+        
+        # 正则提取价格
+        price_match = re.search(r'[\$RM]\s*(\d+\.?\d*)', page_text)
+        
+        if price_match:
+            final_price = price_match.group(1)
+            # 核心：将清洗好的数据打包成字典返回给影刀！
+            return {
+                "status": "success", 
+                "title": page_title, 
+                "price": final_price,
+                "msg": "提取成功"
+            }
+        else:
+            return {"status": "error", "msg": "页面中未正则匹配到价格"}
+            
+    except Exception as e:
+        return {"status": "error", "msg": f"数据提取异常: {e}"}
+
+# 如果在本地 VS Code 测试，取消下面两行的注释
+# result = get_shopee_data()
+# print(result)
