@@ -145,3 +145,6 @@ SELECT * FROM table_name ORDER BY column1;
 -- LENGTH: 按字符串长度排序
 -- 用法：SELECT * FROM articles ORDER BY LENGTH(title) DESC;
 -- 注释：按文章标题长度从长到短排序
+
+-- IF NOT EXISTS：
+-- 这是 RPA 自动化里极其重要的“容错防撞垫”。意思是“如果表不存在才创建”。如果不加这句，你第二次跑机器人时，数据库会报错“表已存在”从而导致流程崩溃。
